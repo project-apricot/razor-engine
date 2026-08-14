@@ -1,0 +1,12 @@
+@{
+    Layout = "Shared/_Layout.cshtml";
+}
+
+<p>Hello @Model.Recipient,</p>
+<p>
+    This markup was produced by <b>@Model.RenderedBy</b> and never touched the response pipeline —
+    the endpoint received it as a string and could just as well have put it in an e-mail.
+</p>
+<p>Reference: <b>@Model.Reference</b></p>
+<p>Best regards,</p>
+<p>The Example Company</p>

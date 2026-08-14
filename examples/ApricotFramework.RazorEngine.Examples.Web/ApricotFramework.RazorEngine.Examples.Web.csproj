@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <WarnOnPackingNonPackableProject>false</WarnOnPackingNonPackableProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/ApricotFramework.RazorEngine.AspNetCore/ApricotFramework.RazorEngine.AspNetCore.csproj" />
+  </ItemGroup>
+
+</Project>

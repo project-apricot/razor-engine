@@ -1,0 +1,86 @@
+---
+title: Razor Engine
+description: Renders a Razor view to a string outside the MVC result pipeline, for e-mail bodies and other templated output.
+---
+
+# Razor Engine
+
+Razor is a good templating language that ASP.NET Core will only point at one thing: the response. The
+moment the markup you want is *not* the response — the HTML body of a welcome e-mail, the input to a
+PDF converter, a fragment you mean to cache — the framework has no answer, and the usual workaround is
+string concatenation or a second templating library that does not share Razor's syntax, tooling or
+compile-time checking.
+
+This library renders a view and hands you the string.
+
+## Packages
+
+| Package | What it is |
+| --- | --- |
+| `ApricotFramework.RazorEngine.AspNetCore` | Registration and `IRazorEngine`, rendering through the MVC Razor view engine |
+
+It takes everything it needs from the ASP.NET Core shared framework, so it has zero NuGet
+dependencies and adds nothing to your dependency tree.
+
+## Install
+
+```bash
+dotnet add package ApricotFramework.RazorEngine.AspNetCore
+```
+
+## The model
+
+One interface with one member:
+
+```csharp
+public interface IRazorEngine
+{
+    Task<string> RenderAsync<TModel>(string view, TModel model, CancellationToken cancellationToken = default);
+}
+```
+
+One call registers it, along with the MVC view services it renders through:
+
+```csharp
+builder.Services.AddRazorEngine();
+```
+
+Nothing else is required. An application that serves no views of its own — a minimal-API host with no
+`AddControllersWithViews` anywhere — still gets a working engine. See
+[ASP.NET Core](aspnetcore) for exactly what that call registers.
+
+## What it is not
+
+It is not a replacement for returning a view from an action. If the markup *is* the response, the MVC
+result pipeline already does this better: it streams, it negotiates content, and it does not buffer the
+whole document. This library buffers into a `string` by definition, which is right for an e-mail body
+and wrong for a page.
+
+> **Note.** Because the rendered document is buffered in memory, the size of what you render is the
+> size of the allocation. Templates that produce megabytes — a report with every row of a table — are
+> better served by streaming from the MVC pipeline.
+
+## Where the templates live
+
+A template is addressed either by path or by name, and the difference decides where it may live:
+
+| Form | Example | Resolved by |
+| --- | --- | --- |
+| Path | `~/Templates/Welcome.cshtml` | The path itself, so the file can live anywhere in the project |
+| Name | `Welcome` | The view engine's location conventions |
+
+The path form is the one to reach for. A template rendered to a string is usually not a page and has
+no reason to sit under `/Views`, and the path form says exactly which file is meant.
+
+The name form is supported for the case where a template genuinely is shared with MVC, but it is
+narrower than it looks — see [Usage](usage) for why only `/Views/Shared` is reachable.
+
+## Rendering outside a request
+
+There is no dependency on an incoming request. The engine builds its own `HttpContext` and its own
+service scope for each render, so it behaves the same in a request handler, in a hosted background
+service, and during application startup before the host begins listening.
+
+> **Note.** "Its own scope" cuts both ways. A view that resolves a scoped service gets an instance
+> belonging to the render, not to any surrounding request. That is the price of working with no request
+> at all, and it is usually invisible — templates take their data from the model.

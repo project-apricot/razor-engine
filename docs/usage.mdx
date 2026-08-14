@@ -1,0 +1,147 @@
+---
+title: Usage
+description: Addressing templates, passing models, cancelling a render, and what happens when a view is missing.
+---
+
+# Usage
+
+Inject `IRazorEngine` wherever markup is needed as a value.
+
+```csharp
+using ApricotFramework.RazorEngine.AspNetCore;
+
+public sealed class WelcomeMailer
+{
+    private readonly IRazorEngine razorEngine;
+
+    public WelcomeMailer(IRazorEngine razorEngine)
+    {
+        this.razorEngine = razorEngine;
+    }
+
+    public Task<string> BuildBodyAsync(Customer customer, CancellationToken cancellationToken)
+    {
+        return this.razorEngine.RenderAsync("~/Templates/Welcome.cshtml", customer, cancellationToken);
+    }
+}
+```
+
+It is a singleton, so it can be consumed from any lifetime — a singleton background service as readily
+as a scoped request handler.
+
+## Addressing a template
+
+The first argument is tried as a path, and only then as a view name.
+
+```csharp
+// By path: found wherever the file lives.
+await razorEngine.RenderAsync("~/Templates/Welcome.cshtml", model);
+
+// By name: found only through the view engine's location conventions.
+await razorEngine.RenderAsync("Welcome", model);
+```
+
+The name form deserves a warning, because it is narrower here than in an MVC action. The default
+conventions are `/Views/{controller}/{name}.cshtml` and `/Views/Shared/{name}.cshtml`, and a render
+that is not handling an MVC action has no `controller` route value to substitute. The first pattern
+therefore expands to a path no file has, leaving `/Views/Shared/{name}.cshtml` as the only location a
+bare name can reach.
+
+> **Note.** Prefer the path form. It works for a template anywhere in the project, it does not depend
+> on route values that do not exist, and it names the file you actually meant.
+
+Layouts and partials referenced *from inside* a template are resolved by Razor itself and are not
+subject to the above — a layout given as `Layout = "Shared/_Layout.cshtml"` is resolved relative to the
+template that names it.
+
+## Passing a model
+
+`TModel` is inferred, and a strongly typed template is the pleasant case:
+
+```csharp
+// Welcome.cshtml starts with: @model Customer
+await razorEngine.RenderAsync("~/Templates/Welcome.cshtml", customer);
+```
+
+An anonymous type works too, with `dynamic` as the type argument:
+
+```csharp
+await razorEngine.RenderAsync<dynamic>("~/Templates/Welcome.cshtml", new
+{
+    Title = "Welcome",
+    Name = customer.Name,
+});
+```
+
+> **Warning.** `dynamic` moves every model mistake from compile time to render time. A template
+> referencing `@Model.Name` against an object without that property throws
+> `RuntimeBinderException` — as does any `@Model.X` when the model is null. Neither is reported by the
+> compiler. A `@model` declaration and a real type are worth the extra file.
+
+## Cancellation
+
+The token is carried on the `HttpContext` the render is given, so a template that awaits can observe
+it:
+
+```razor
+@{ await SomethingSlow(Context.RequestAborted); }
+```
+
+An already-cancelled token is rejected before any work starts. A token that fires *during* a render
+interrupts it only where the template cooperates — Razor's own rendering has no cancellation point of
+its own, so a purely synchronous template runs to completion.
+
+## When no view matches
+
+`RenderAsync` throws `InvalidOperationException` naming the view and every location that was searched:
+
+```text
+The view 'Welcome' was not found. Locations searched:
+/Views/Welcome.cshtml
+/Views/Shared/Welcome.cshtml
+```
+
+That listing is the fastest way to see the problem: a missing `~/` prefix, a template outside
+`/Views/Shared`, or a file that was never copied to the output. A missing template is a mistake in your
+code rather than bad input, which is why this is an exception and not a result type.
+
+Malformed view names are safe to pass. A path with `..`, an absolute filesystem path, a name of a few
+thousand characters, an embedded null byte or newline, non-ASCII — each is simply not found, promptly,
+with the same exception. None of them reaches outside the application's own views.
+
+## Replacing or extending the engine
+
+`IRazorEngine` is registered with `TryAddSingleton`, so registering your own implementation first
+leaves it in place. To adjust the built-in behaviour rather than replace it, derive from
+`MvcRazorEngine` and override:
+
+| Member | Override to |
+| --- | --- |
+| `RenderAsync` | Wrap a render — timing, logging, caching the output |
+| `FindView` | Resolve views from somewhere the view engine does not look |
+| `GetActionContext` | Put route values, features or a user on the context the view sees |
+
+`GetActionContext` is the interesting one: supplying a `controller` route value is what makes the
+view-name conventions behave as they do inside MVC.
+
+```csharp
+public sealed class MailRazorEngine : MvcRazorEngine
+{
+    public MailRazorEngine(IRazorViewEngine viewEngine, ITempDataProvider tempDataProvider, IServiceProvider serviceProvider)
+        : base(viewEngine, tempDataProvider, serviceProvider)
+    {
+    }
+
+    protected override ActionContext GetActionContext(IServiceScope scope, CancellationToken cancellationToken)
+    {
+        var context = base.GetActionContext(scope, cancellationToken);
+
+        context.RouteData.Values["controller"] = "Mail";
+
+        return context;
+    }
+}
+```
+
+Register it before `AddRazorEngine`, or with `AddSingleton` after it, and the built-in engine steps
+aside.

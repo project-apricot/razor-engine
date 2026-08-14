@@ -1,0 +1,107 @@
+---
+title: ASP.NET Core
+description: What AddRazorEngine registers, where templates may live, and what a non-web host has to supply.
+---
+
+# ASP.NET Core
+
+One call, in any order relative to the rest of your MVC setup:
+
+```csharp
+using ApricotFramework.RazorEngine.AspNetCore.Extensions;
+
+builder.Services.AddRazorEngine();
+```
+
+## What the call registers
+
+| Registration | Why |
+| --- | --- |
+| `AddMvcCore().AddRazorViewEngine()` | Supplies `IRazorViewEngine`, which locates and compiles views, and the `ITempDataProvider` a `ViewContext` requires |
+| `TryAddSingleton<IRazorEngine, MvcRazorEngine>` | The engine itself |
+
+Both are additive. `AddRazorViewEngine` is `TryAdd`-based internally, so an application that also calls
+`AddControllersWithViews` or `AddRazorPages` is unaffected — and unaffected by the *order* of the two
+calls, which is worth knowing because the failure mode of a non-additive registration is a working
+build and a broken host.
+
+The consequence worth stating plainly: **you do not need `AddControllersWithViews`**. A minimal-API
+host that serves no views of its own gets a working engine from this one call. The example application
+in this repository is exactly that — its `Program.cs` contains no MVC registration at all.
+
+`IRazorEngine` is a singleton, and registered with `TryAddSingleton`, so your own implementation
+registered beforehand is left in place.
+
+## Where templates may live
+
+Templates are compiled by the Razor SDK into an assembly, and the engine finds them there.
+
+| Project | Setup | Found |
+| --- | --- | --- |
+| The web application itself | Nothing — `Microsoft.NET.Sdk.Web` compiles `.cshtml` already | Yes |
+| A referenced class library | `Microsoft.NET.Sdk.Razor` with `<AddRazorSupportForMvc>true</AddRazorSupportForMvc>` | Yes, with no registration of application parts |
+
+A shared library of e-mail templates is therefore a plain project reference, which is the arrangement
+most teams want: the templates live next to the code that sends the mail, not in the web host.
+
+> **Warning.** Give a template in a class library a **public** model type and a `@model` declaration.
+> An anonymous type will not work across the assembly boundary — the dynamic binding inside the
+> library's compiled view cannot see a type that is internal to your application, and the failure
+> arrives at render time.
+
+## When rendering may happen
+
+Any time after the host is built. There is no dependency on an in-flight request, so this is valid:
+
+```csharp
+var app = builder.Build();
+
+// Before the host listens.
+var engine = app.Services.GetRequiredService<IRazorEngine>();
+var html = await engine.RenderAsync("~/Templates/Startup.cshtml", model);
+
+app.Run();
+```
+
+...as is rendering from an `IHostedService`, a message consumer, or a scheduled job.
+
+## Hosts that are not web hosts
+
+The MVC Razor view engine expects the services a *web* host provides. Two of them are not registered by
+any MVC call, and `AddRazorEngine` deliberately does not fabricate them:
+
+| Service | Supplied by | Needed for |
+| --- | --- | --- |
+| `DiagnosticSource` | The web host, as a `DiagnosticListener` | Activating the Razor page activator — without it, resolving `IRazorEngine` throws |
+| `IWebHostEnvironment` | The web host | Discovering compiled views — without it, every lookup reports nothing found |
+
+In a `WebApplication` host both are present and there is nothing to do. In a plain
+`Host.CreateApplicationBuilder` worker or console host, neither is, and you have to register them
+yourself before the engine will work:
+
+```csharp
+var listener = new DiagnosticListener("MyWorker");
+builder.Services.AddSingleton(listener);
+builder.Services.AddSingleton<DiagnosticSource>(listener);
+builder.Services.AddSingleton<IWebHostEnvironment>(/* your own, naming the content root */);
+
+builder.Services.AddRazorEngine();
+```
+
+> **Note.** `IWebHostEnvironment` is the host's own identity — its content root, web root and
+> application name. A library cannot invent a meaningful one, which is why this is left to you rather
+> than guessed at. If a worker needs to render templates, hosting it as a `WebApplication` that simply
+> maps no endpoints is usually less work than shimming the environment.
+
+## Lifetimes and scopes
+
+The engine is a singleton and creates **one service scope per render**, from the root provider. Nothing
+is shared between two renders, and nothing is shared with a surrounding request.
+
+That last point is the one to remember: inside a request handler, a view that resolves a scoped service
+does not get the request's instance. It gets one belonging to the render, which is disposed when
+`RenderAsync` returns. Templates that take their data from the model — which is nearly all of them —
+never notice. A template that resolves a scoped `DbContext` expecting the request's unit of work does.
+
+If you need the ambient scope instead, derive from `MvcRazorEngine` and override `GetActionContext` to
+use the request's `RequestServices`; see [Usage](usage).
