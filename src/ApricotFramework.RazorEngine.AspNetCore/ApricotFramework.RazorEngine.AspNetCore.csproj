@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>Renders a Razor view to a string outside the MVC result pipeline, so HTML e-mail bodies, PDF input and other templated output can be produced from anywhere — including a background job with no request in flight. One call registers everything it needs.</Description>
+    <PackageTags>aspnetcore;razor;template;rendering;view;html;email;mvc;dependencyinjection</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+</Project>

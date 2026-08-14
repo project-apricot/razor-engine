@@ -1,0 +1,5 @@
+{
+  "title": "Razor Engine",
+  "description": "Renders a Razor view to a string outside the MVC result pipeline, for e-mail bodies and other templated output.",
+  "pages": ["index", "usage", "aspnetcore"]
+}

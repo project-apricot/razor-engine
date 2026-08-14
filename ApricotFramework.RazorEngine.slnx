@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ApricotFramework.RazorEngine.AspNetCore/ApricotFramework.RazorEngine.AspNetCore.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <File Path="tests\.editorconfig" />
+    <Project Path="tests/ApricotFramework.RazorEngine.AspNetCore.Tests/ApricotFramework.RazorEngine.AspNetCore.Tests.csproj" />
+  </Folder>
+  <Folder Name="/examples/">
+    <Project Path="examples/ApricotFramework.RazorEngine.Examples.Web/ApricotFramework.RazorEngine.Examples.Web.csproj" />
+  </Folder>
+</Solution>
