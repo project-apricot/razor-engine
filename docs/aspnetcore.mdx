@@ -104,4 +104,4 @@ does not get the request's instance. It gets one belonging to the render, which 
 never notice. A template that resolves a scoped `DbContext` expecting the request's unit of work does.
 
 If you need the ambient scope instead, derive from `MvcRazorEngine` and override `GetActionContext` to
-use the request's `RequestServices`; see [Usage](usage).
+use the request's `RequestServices`; see [Usage](./usage.mdx).

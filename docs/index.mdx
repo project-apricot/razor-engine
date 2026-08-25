@@ -47,7 +47,7 @@ builder.Services.AddRazorEngine();
 
 Nothing else is required. An application that serves no views of its own — a minimal-API host with no
 `AddControllersWithViews` anywhere — still gets a working engine. See
-[ASP.NET Core](aspnetcore) for exactly what that call registers.
+[ASP.NET Core](./aspnetcore.mdx) for exactly what that call registers.
 
 ## What it is not
 
@@ -73,7 +73,7 @@ The path form is the one to reach for. A template rendered to a string is usuall
 no reason to sit under `/Views`, and the path form says exactly which file is meant.
 
 The name form is supported for the case where a template genuinely is shared with MVC, but it is
-narrower than it looks — see [Usage](usage) for why only `/Views/Shared` is reachable.
+narrower than it looks — see [Usage](./usage.mdx) for why only `/Views/Shared` is reachable.
 
 ## Rendering outside a request
 

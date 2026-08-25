@@ -44,4 +44,4 @@ Each render gets **its own service scope**, which is what lets the engine run wi
 flight — and also means a view resolving a scoped service during a request does not share that
 request's instance.
 
-Full documentation: <https://projectapricot.dev>
+Full documentation: <https://projectapricot.dev/docs/razor-engine>
